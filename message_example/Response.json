@@ -1,0 +1,43 @@
+{
+	"ok": true,
+	"result": [
+		{
+			"update_id": 272075921,
+			"message": {
+				"message_id": 34,
+				"from": {
+					"id": 277968766,
+					"is_bot": false,
+					"first_name": "Artemy",
+					"username": "ArtemyKlimov",
+					"language_code": "en"
+				},
+				"chat": {
+					"id": 277968766,
+					"first_name": "Artemy",
+					"username": "ArtemyKlimov",
+					"type": "private"
+				},
+				"date": 1687523300,
+				"reply_to_message": {
+					"message_id": 28,
+					"from": {
+						"id": 6067517258,
+						"is_bot": true,
+						"first_name": "EnglishTrainer",
+						"username": "english_trainer_app_bot"
+					},
+					"chat": {
+						"id": 277968766,
+						"first_name": "Artemy",
+						"username": "ArtemyKlimov",
+						"type": "private"
+					},
+					"date": 1687521813,
+					"text": "Hi, I'm your English trainer. You can use me to repeat vocabulary"
+				},
+				"text": "This is a message text"
+			}
+		}
+	]
+}
