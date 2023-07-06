@@ -10,12 +10,12 @@ CREATE TABLE EnglishTrainer.Users(
 
 CREATE TABLE EnglishTrainer.EngPhrase(
     id int NOT NULL PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    value VARCHAR(36) NOT NULL
+    value VARCHAR(150) NOT NULL
 );
 
 CREATE TABLE EnglishTrainer.RusPhrase(
     id int NOT NULL PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    value VARCHAR(36) NOT NULL
+    value VARCHAR(150) NOT NULL
 );
 
 CREATE TABLE EnglishTrainer.RusEngPhrase (
@@ -25,7 +25,7 @@ CREATE TABLE EnglishTrainer.RusEngPhrase (
 	CONSTRAINT engId_fk FOREIGN KEY (engId) REFERENCES EnglishTrainer.EngPhrase(id)
 );
 
-CREATE OR REPLACE FUNCTION EnglishTrainer.AddNewPair(IN rusV VARCHAR(100), IN engV VARCHAR(100)) RETURNS VARCHAR 
+CREATE OR REPLACE FUNCTION EnglishTrainer.AddNewPair(IN rusV VARCHAR(150), IN engV VARCHAR(150)) RETURNS VARCHAR 
 LANGUAGE plpgsql AS
 $$
 DECLARE
@@ -109,3 +109,46 @@ SELECT EnglishTrainer.AddNewPair ('заранее', 'beforehand');
 SELECT EnglishTrainer.AddNewPair ('заранее', 'in advance');
 SELECT EnglishTrainer.AddNewPair ('упрямый', 'stubborn');
 SELECT EnglishTrainer.AddNewPair ('упрямый', 'stiff-necked');
+SELECT EnglishTrainer.AddNewPair ('изгонять', 'expell');
+SELECT EnglishTrainer.AddNewPair ('отчислять', 'expell');
+SELECT EnglishTrainer.AddNewPair ('обвиняться в убийстве', 'to be charged with murder');
+SELECT EnglishTrainer.AddNewPair ('бурчать под нос', 'murmuring under smth breath');
+SELECT EnglishTrainer.AddNewPair ('мямля', 'mumbler');
+SELECT EnglishTrainer.AddNewPair ('захватывающий', 'breathtaking');
+SELECT EnglishTrainer.AddNewPair ('непослушный', 'naughty');
+SELECT EnglishTrainer.AddNewPair ('поцелуй меня на прощание', 'kiss me goodbye');
+SELECT EnglishTrainer.AddNewPair ('невыносимо', 'unbearable');
+SELECT EnglishTrainer.AddNewPair ('задумчивый', 'thoughtful');
+SELECT EnglishTrainer.AddNewPair ('подвал', 'cellar');
+SELECT EnglishTrainer.AddNewPair ('неотложное дело', 'urgent issue');
+SELECT EnglishTrainer.AddNewPair ('развеять сомнения', 'alleviate concerns');
+SELECT EnglishTrainer.AddNewPair ('преодолевай себя', 'break your limits');
+SELECT EnglishTrainer.AddNewPair ('признаваться', 'make a confession');
+SELECT EnglishTrainer.AddNewPair ('в следующий раз мне повезет', 'Better luck next time');
+SELECT EnglishTrainer.AddNewPair ('с каждым днем', 'day by day');
+SELECT EnglishTrainer.AddNewPair ('свидетель ограбления', 'witness to the robbery');
+SELECT EnglishTrainer.AddNewPair ('откровенно', 'frankly');
+SELECT EnglishTrainer.AddNewPair ('выбирать наряд', 'choosing an outfit');
+SELECT EnglishTrainer.AddNewPair ('запутаться', 'get confused');
+SELECT EnglishTrainer.AddNewPair ('обижаться', 'get offended');
+SELECT EnglishTrainer.AddNewPair ('быть уволенным', 'get fired');
+SELECT EnglishTrainer.AddNewPair ('быть помолвленным', 'get engage');
+SELECT EnglishTrainer.AddNewPair ('сгореть на солнце', 'get sunburn');
+SELECT EnglishTrainer.AddNewPair ('быть хваленым', 'to be praised');
+SELECT EnglishTrainer.AddNewPair ('разозлиться на ', 'get angry with');
+SELECT EnglishTrainer.AddNewPair ('Обидно, .. ', 'It is insulting');
+SELECT EnglishTrainer.AddNewPair ('И на твоей улице будет праздник', 'your ship will come in to');
+SELECT EnglishTrainer.AddNewPair ('Что за шум, что за базар', 'what`s the rumpus');
+SELECT EnglishTrainer.AddNewPair ('твоя репутация говорит сама за себя, я "наслышан" о вас', 'your rep precedes you');
+SELECT EnglishTrainer.AddNewPair ('то хорошо, то плохо, по-разному', 'strikes and gutters');
+SELECT EnglishTrainer.AddNewPair ('оставайся в своем "болоте"', 'stay safe at street level');
+SELECT EnglishTrainer.AddNewPair ('тупица', 'shmucks');
+SELECT EnglishTrainer.AddNewPair ('потерявши голову по волосам не плачут', 'it`s no use crying over spilled milk');
+SELECT EnglishTrainer.AddNewPair ('решительный, упертый человек', 'determened person ');
+SELECT EnglishTrainer.AddNewPair ('сходить с ума от страха', 'to go crazy with fear');
+SELECT EnglishTrainer.AddNewPair ('спросонья', 'being half-awake');
+SELECT EnglishTrainer.AddNewPair ('завораживающий', 'mesmerizing');
+SELECT EnglishTrainer.AddNewPair ('оценивать', 'to gauge');
+SELECT EnglishTrainer.AddNewPair ('оценивать', 'to estimate');
+SELECT EnglishTrainer.AddNewPair ('оценивать', 'to rate');
+

@@ -4,6 +4,7 @@ const (
 	StartText string = "Hi, I'm your English trainer. You can use me to repeat vocabulary\n" +
 		"Press /help to check what I can do"
 	HelpText string = "You can control me by sending these commands: \n" +
+		"/start - let's get acquainted\n" +
 		"/add - create new pair of phrases\n" +
 		"/learn - learn some new words and phrases\n" +
 		"/train - start practice your vocabulary\n" +
@@ -14,4 +15,5 @@ const (
 	UnknownCommandText string = "Unknown command. Press /help for information"
 	UnknownInputText   string = "Unknown input. Press /help for information"
 	TrainInputText     string = "Let's practice some phrases:"
+	ExitText           string = "Press /help to check what I can do"
 )

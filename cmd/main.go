@@ -7,6 +7,7 @@ import (
 	"english_trainer/pkg/trainerbot"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"reflect"
 	"strings"
@@ -15,35 +16,85 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var (
+	bot *tgbotapi.BotAPI
+)
+
+func initTelegram(botToken, baseURL, pemFile string) {
+	var err error
+
+	bot, err = tgbotapi.NewBotAPI(botToken)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	// this perhaps should be conditional on GetWebhookInfo()
+	// only set webhook if it is not set properly
+	url := baseURL + "/" + bot.Token
+	pemFilePath := tgbotapi.FilePath(pemFile)
+
+	wh, _ := tgbotapi.NewWebhookWithCert(url, pemFilePath)
+	_, err = bot.Request(wh)
+	if err != nil {
+		log.Fatal(err)
+	}
+	info, err := bot.GetWebhookInfo()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if info.LastErrorDate != 0 {
+		log.Printf("Telegram callback failed: %s", info.LastErrorMessage)
+	}
+	log.Printf("IPAddress = %s", info.IPAddress)
+	log.Printf("URL = %s", info.URL)
+	if err != nil {
+		log.Println(err)
+	}
+
+}
+
 func main() {
-	err := godotenv.Load()
+	f, err := os.OpenFile("app.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer f.Close()
+
+	log.SetOutput(f)
+
+	err = godotenv.Load()
 	if err != nil {
 		log.Fatal(".enf file couldn't be loaded")
 	}
 	api_token := os.Getenv("TG_API_TOKEN")
-	bot, err := tgbotapi.NewBotAPI(api_token)
-	if err != nil {
-		log.Fatal(err)
-	}
-	bot.Debug = false
-
-	log.Printf("Authorized on account %s", bot.Self.UserName)
-
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
-
-	updates := bot.GetUpdatesChan(u)
-
+	keyPem := os.Getenv("PEM_KEY")
+	certPem := os.Getenv("PEM_CERT")
+	baseURL := os.Getenv("BASE_URL")
 	config := trainerbot.NewConfig()
-
 	b, err := trainerbot.New(config)
 	if err != nil {
 		log.Fatal(fmt.Errorf("Can not initialize config: %v", err))
 	}
+	bot, err := tgbotapi.NewBotAPI(api_token)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	bot.Debug = false
+
+	initTelegram(api_token, baseURL, certPem)
+	log.Printf("Authorized on account %s", bot.Self.UserName)
+
+	updates := bot.ListenForWebhook("/" + bot.Token)
+
+	go http.ListenAndServeTLS(":8443", certPem, keyPem, nil)
+	log.Printf("BOT_TOKEN = %s", bot.Token)
 
 	apiUsers := make(map[string]*model.APIUser)
 
 	for update := range updates {
+
 		if update.Message == nil { // If we got a message
 			continue
 		}
@@ -104,6 +155,8 @@ func produceCommand(update *tgbotapi.Update, apiUser *model.APIUser, bot *tgbota
 		processLearn(update, apiUser, bot, b)
 	case "/exit":
 		apiUser.SetOperation(utils.StartOperation)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, texts.ExitText)
+		bot.Send(msg)
 	default:
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, texts.UnknownCommandText)
 		apiUser.SetOperation(utils.StartOperation)
