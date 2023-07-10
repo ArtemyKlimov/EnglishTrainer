@@ -21,9 +21,15 @@ type APIUser struct {
 	UserName           string
 	CurrentWord        string
 	CurrentAttempt     int
+	PreviousMessage    *TgMessage
 	CurrentTranslation []string
 }
 
 func (u *APIUser) SetOperation(o Operation) {
 	u.CurrentOperation = o
+}
+
+type TgMessage struct {
+	MessageId int
+	ChatId    int64
 }

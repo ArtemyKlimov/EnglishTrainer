@@ -7,7 +7,6 @@ import (
 	"english_trainer/pkg/trainerbot"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"reflect"
 	"strings"
@@ -16,114 +15,102 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var (
-	bot *tgbotapi.BotAPI
+var trainKeyboard = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("не знаю", "dontknow"),
+		tgbotapi.NewInlineKeyboardButtonData("подсказка", "givemeahint"),
+		tgbotapi.NewInlineKeyboardButtonData("дальше", "nextquestionpls"),
+	),
 )
 
-func initTelegram(botToken, baseURL, pemFile string) {
-	var err error
-
-	bot, err = tgbotapi.NewBotAPI(botToken)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	// this perhaps should be conditional on GetWebhookInfo()
-	// only set webhook if it is not set properly
-	url := baseURL + "/" + bot.Token
-	pemFilePath := tgbotapi.FilePath(pemFile)
-
-	wh, _ := tgbotapi.NewWebhookWithCert(url, pemFilePath)
-	_, err = bot.Request(wh)
-	if err != nil {
-		log.Fatal(err)
-	}
-	info, err := bot.GetWebhookInfo()
-	if err != nil {
-		log.Fatal(err)
-	}
-	if info.LastErrorDate != 0 {
-		log.Printf("Telegram callback failed: %s", info.LastErrorMessage)
-	}
-	log.Printf("IPAddress = %s", info.IPAddress)
-	log.Printf("URL = %s", info.URL)
-	if err != nil {
-		log.Println(err)
-	}
-
-}
-
 func main() {
-	f, err := os.OpenFile("app.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer f.Close()
-
-	log.SetOutput(f)
-
-	err = godotenv.Load()
+	err := godotenv.Load()
 	if err != nil {
 		log.Fatal(".enf file couldn't be loaded")
 	}
 	api_token := os.Getenv("TG_API_TOKEN")
-	keyPem := os.Getenv("PEM_KEY")
-	certPem := os.Getenv("PEM_CERT")
-	baseURL := os.Getenv("BASE_URL")
-	config := trainerbot.NewConfig()
-	b, err := trainerbot.New(config)
-	if err != nil {
-		log.Fatal(fmt.Errorf("Can not initialize config: %v", err))
-	}
 	bot, err := tgbotapi.NewBotAPI(api_token)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	bot.Debug = false
 
-	initTelegram(api_token, baseURL, certPem)
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
-	updates := bot.ListenForWebhook("/" + bot.Token)
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
 
-	go http.ListenAndServeTLS(":8443", certPem, keyPem, nil)
-	log.Printf("BOT_TOKEN = %s", bot.Token)
+	updates := bot.GetUpdatesChan(u)
+
+	config := trainerbot.NewConfig()
+
+	b, err := trainerbot.New(config)
+	if err != nil {
+		log.Fatal(fmt.Errorf("Can not initialize config: %v", err))
+	}
 
 	apiUsers := make(map[string]*model.APIUser)
 
 	for update := range updates {
-
-		if update.Message == nil { // If we got a message
+		userName, err := getUserName(&update)
+		if err != nil {
+			log.Printf("Error while getting UserName: %v", err)
+			processUnknown(&update, nil, bot, b)
 			continue
 		}
-		if reflect.TypeOf(update.Message.Text).Kind() == reflect.String && update.Message.Text != "" {
-			apiUser, ok := apiUsers[update.Message.From.UserName]
-			if !ok {
-				apiUser = &model.APIUser{
-					CurrentOperation: utils.StartOperation,
-					UserName:         update.Message.From.UserName,
+		apiUser, ok := apiUsers[userName]
+		if !ok {
+			apiUser = &model.APIUser{
+				CurrentOperation: utils.StartOperation,
+				UserName:         userName,
+			}
+			apiUsers[userName] = apiUser
+		}
+		if update.Message != nil { // If we got a message
+			if reflect.TypeOf(update.Message.Text).Kind() == reflect.String && update.Message.Text != "" {
+
+				if strings.HasPrefix(update.Message.Text, "/") {
+					produceCommand(&update, apiUser, bot, b)
+					continue
 				}
-				apiUsers[update.Message.From.UserName] = apiUser
+				if apiUser.CurrentOperation == utils.AddOperation {
+					processAdd(&update, apiUser, bot, b)
+					continue
+				} else if apiUser.CurrentOperation == utils.TrainOperation {
+					processTrain(&update, apiUser, bot, b)
+					continue
+				} else if apiUser.CurrentOperation == utils.LearnOperation {
+					processLearn(&update, apiUser, bot, b)
+					continue
+				} else {
+					processUnknown(&update, apiUser, bot, b)
+				}
 			}
-			if strings.HasPrefix(update.Message.Text, "/") {
-				produceCommand(&update, apiUser, bot, b)
-				continue
-			}
-			if apiUser.CurrentOperation == utils.AddOperation {
-				processAdd(&update, apiUser, bot, b)
-				continue
-			} else if apiUser.CurrentOperation == utils.TrainOperation {
+		} else if update.CallbackQuery != nil {
+			//	tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data)
+
+			fmt.Println("DATA = " + update.CallbackQuery.Data)
+
+			if apiUser.CurrentOperation == utils.TrainOperation {
 				processTrain(&update, apiUser, bot, b)
 				continue
-			} else if apiUser.CurrentOperation == utils.LearnOperation {
-				processLearn(&update, apiUser, bot, b)
-				continue
-			} else {
-				processUnknown(&update, apiUser, bot, b)
 			}
+
 		}
+	}
+}
+
+func getUserName(update *tgbotapi.Update) (string, error) {
+	if update.Message != nil {
+		return update.Message.From.UserName, nil
+	} else if update.CallbackQuery != nil {
+		return update.CallbackQuery.From.UserName, nil
+	} else if update.ChannelPost != nil {
+		return update.ChannelPost.From.UserName, nil
+	} else if update.EditedMessage != nil {
+		return update.EditedMessage.From.UserName, nil
+	} else {
+		return "", fmt.Errorf("Unsopported message type")
 	}
 }
 
@@ -155,7 +142,14 @@ func produceCommand(update *tgbotapi.Update, apiUser *model.APIUser, bot *tgbota
 		processLearn(update, apiUser, bot, b)
 	case "/exit":
 		apiUser.SetOperation(utils.StartOperation)
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, texts.ExitText)
+	case "/button":
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
+		msg.ReplyMarkup = trainKeyboard
+		bot.Send(msg)
+
+	case "/close":
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
+		msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
 		bot.Send(msg)
 	default:
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, texts.UnknownCommandText)
@@ -185,14 +179,42 @@ func processAdd(update *tgbotapi.Update, apiUser *model.APIUser, bot *tgbotapi.B
 }
 
 func processTrain(update *tgbotapi.Update, apiUser *model.APIUser, bot *tgbotapi.BotAPI, b *trainerbot.TrainerBot) {
-	rusPhrase, err := b.StartTraining(apiUser, update.Message.Text)
+	var rusPhrase string
+	var err error
+	var msg tgbotapi.MessageConfig
+	var chatId int64
+	var messageId int
+	if update.CallbackQuery != nil {
+		chatId = update.CallbackQuery.Message.Chat.ID
+		messageId = update.CallbackQuery.Message.MessageID
+		editedMsg := tgbotapi.NewEditMessageReplyMarkup(chatId, messageId, tgbotapi.InlineKeyboardMarkup{InlineKeyboard: make([][]tgbotapi.InlineKeyboardButton, 0, 0)})
+		bot.Send(editedMsg)
+		rusPhrase, err = b.StartTraining(apiUser, update.CallbackQuery.Data)
+		msg = tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, rusPhrase)
+	} else {
+		if apiUser.PreviousMessage != nil {
+			editedMsg := tgbotapi.NewEditMessageReplyMarkup(apiUser.PreviousMessage.ChatId, apiUser.PreviousMessage.MessageId, tgbotapi.InlineKeyboardMarkup{InlineKeyboard: make([][]tgbotapi.InlineKeyboardButton, 0, 0)})
+			fmt.Println("AAAA removing inline message")
+			bot.Send(editedMsg)
+		} else {
+			apiUser.PreviousMessage = &model.TgMessage{}
+		}
+
+		rusPhrase, err = b.StartTraining(apiUser, update.Message.Text)
+		msg = tgbotapi.NewMessage(update.Message.Chat.ID, rusPhrase)
+
+	}
 	if err != nil {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, err.Error())
 		bot.Send(msg)
 		return
 	}
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, rusPhrase)
-	bot.Send(msg)
+
+	msg.ReplyMarkup = trainKeyboard
+	sendedMsg, _ := bot.Send(msg)
+
+	apiUser.PreviousMessage.ChatId = sendedMsg.Chat.ID
+	apiUser.PreviousMessage.MessageId = sendedMsg.MessageID
 }
 
 func processLearn(update *tgbotapi.Update, apiUser *model.APIUser, bot *tgbotapi.BotAPI, b *trainerbot.TrainerBot) {

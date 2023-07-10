@@ -96,9 +96,11 @@ func (bot *TrainerBot) StartLearning() ([]string, string, error) {
 func (bot *TrainerBot) StartTraining(user *model.APIUser, text string) (string, error) {
 	results := make([]string, 0)
 	resultRusPhrase := "как сказать: "
-	if user.CurrentWord != "" {
-		if strings.ToLower(text) == "не знаю" {
+	if user.CurrentWord != "" && text != "nextquestionpls" {
+		if strings.ToLower(text) == "не знаю" || strings.ToLower(text) == "dontknow" {
 			resultRusPhrase = user.CurrentWord + " - это " + user.CurrentTranslation[0] + ". А как сказать: "
+		} else if text == "givemeahint" {
+			return "Вот подсказка: " + utils.ReplaceEverySecondSymbol(user.CurrentTranslation[0]), nil
 		} else {
 			var isMatch bool
 			for _, s := range user.CurrentTranslation {
@@ -109,13 +111,8 @@ func (bot *TrainerBot) StartTraining(user *model.APIUser, text string) (string, 
 				}
 			}
 			if !isMatch {
-				if user.CurrentAttempt == 1 {
-					user.CurrentAttempt += 1
-					return "Неверно, попробуй еще раз. Если не знаешь, напиши 'не знаю'", nil
-				} else {
-					user.CurrentAttempt = user.CurrentAttempt + 1
-					return "Неверно, попробуй еще раз. Вот подсказка: " + utils.ReplaceEverySecondSymbol(user.CurrentTranslation[0]), nil
-				}
+				user.CurrentAttempt += 1
+				return "Неверно, попробуй еще раз. Если не знаешь, напиши 'не знаю'", nil
 			}
 
 		}
