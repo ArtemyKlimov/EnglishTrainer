@@ -6,7 +6,7 @@ const (
 	HelpText string = "You can control me by sending these commands: \n" +
 		"/start - let's get acquainted\n" +
 		"/add - create new pair of phrases\n" +
-		"/learn - learn some new words and phrases\n" +
+		"/learn - learn new words and phrases\n" +
 		"/train - start practice your vocabulary\n" +
 		"/exit - exit from current operation to the main menu"
 	AddOperationText string = "Введите фразы в формате значение,синоним:value,synonym \n" +
@@ -15,5 +15,5 @@ const (
 	UnknownCommandText string = "Unknown command. Press /help for information"
 	UnknownInputText   string = "Unknown input. Press /help for information"
 	TrainInputText     string = "Let's practice some phrases:"
-	ExitText           string = "Press /help to check what I can do"
+	ExitText           string = "Для получения информации по списку команд, нажмите /help"
 )

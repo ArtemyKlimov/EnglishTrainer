@@ -5,6 +5,7 @@ import (
 	"english_trainer/internal/store"
 	"english_trainer/internal/utils"
 	"errors"
+	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -26,7 +27,7 @@ func New(c *Config) (*TrainerBot, error) {
 	return t, nil
 }
 
-func (bot *TrainerBot) AddNewPair(text string) (string, error) {
+func (bot *TrainerBot) AddNewPair(text string, user *model.APIUser) (string, error) {
 	splitted_text := strings.Split(text, ":")
 	if len(splitted_text) == 1 {
 		return "", errors.New("Неправильно переданы значения. Должен быть разделитель \":\"")
@@ -49,7 +50,7 @@ func (bot *TrainerBot) AddNewPair(text string) (string, error) {
 			var result string
 			rusV := strings.Replace(rs, "`", "'", -1)
 			engV := strings.Replace(es, "`", "'", -1)
-			if err := bot.store.Db.QueryRow("SELECT EnglishTrainer.AddNewPair ($1,$2)", rusV, engV).
+			if err := bot.store.Db.QueryRow("SELECT EnglishTrainer.AddNewPair ($1,$2,$3)", rusV, engV, user.Id).
 				Scan(&result); err != nil {
 				return "", err
 			}
@@ -64,20 +65,66 @@ func (bot *TrainerBot) AddNewPair(text string) (string, error) {
 	return totalResult, nil
 }
 
-func (bot *TrainerBot) StartLearning() ([]string, string, error) {
+func (bot *TrainerBot) FindUserByUserName(user *model.APIUser) error {
+	var userId int
+	var istrainOwnFrases bool
+	var addedWordsToday int
+	if err := bot.store.Db.QueryRow("SELECT id, istrainOwnFrases, addedWordsToday FROM englishTrainer.Users WHERE userName = $1", user.UserName).
+		Scan(&userId, &istrainOwnFrases, &addedWordsToday); err == nil {
+		user.Id = userId
+		user.OnlyMyDictionary = istrainOwnFrases
+		user.AddedWordsToday = addedWordsToday
+		return nil
+	} else if !strings.Contains(err.Error(), "no rows in result set") {
+		return err
+	}
+	if err := bot.store.Db.QueryRow("INSERT INTO englishTrainer.Users (userName, istrainOwnFrases, addedWordsToday)"+
+		" VALUES ($1, $2, $3) RETURNING id", user.UserName, false, 0).Scan(&userId); err != nil {
+		return err
+	}
+	user.Id = userId
+	return nil
+}
+
+func (bot *TrainerBot) StartLearning(user *model.APIUser) ([]string, string, error) {
 	results := make([]string, 0)
 	var totalNum int
-	if err := bot.store.Db.QueryRow("SELECT COUNT(*) FROM englishTrainer.rusPhrase").Scan(&totalNum); err != nil {
-		return nil, "", err
-	}
-	rand.Seed(time.Now().UnixNano())
-	rand := 1 + rand.Intn(totalNum)
 	var rusPhraseId int
+	var random int
 	var rusPhrase string
-	if err := bot.store.Db.QueryRow("SELECT id, value FROM englishTrainer.rusPhrase WHERE id = $1", rand).Scan(&rusPhraseId, &rusPhrase); err != nil {
+	rand.Seed(time.Now().UnixNano())
+	if user.OnlyMyDictionary {
+		idMap := make(map[int]int)
+		rows, err := bot.store.Db.Query("SELECT id FROM englishTrainer.rusPhrase WHERE addedById = $1", user.Id)
+		if err != nil {
+			if strings.Contains(err.Error(), "no rows") {
+				return nil, "", fmt.Errorf("Ваш словарь пока пустой")
+			}
+			return nil, "", err
+		}
+		i := 0
+		var id int
+		for rows.Next() {
+			rows.Scan(&id)
+			idMap[i] = id
+			i++
+		}
+		if len(idMap) == 0 {
+			return nil, "", fmt.Errorf("Вы не добавили еще слов в Ваш словарь")
+		}
+		num := rand.Intn(len(idMap))
+		random = idMap[num]
+	} else {
+		if err := bot.store.Db.QueryRow("SELECT COUNT(*) FROM englishTrainer.rusPhrase").Scan(&totalNum); err != nil {
+			return nil, "", err
+		}
+		random = 1 + rand.Intn(totalNum)
+
+	}
+	if err := bot.store.Db.QueryRow("SELECT id, value FROM englishTrainer.rusPhrase WHERE id = $1", random).Scan(&rusPhraseId, &rusPhrase); err != nil {
+		fmt.Println("ERROR is HERE!")
 		return nil, "", err
 	}
-
 	rows, err := bot.store.Db.Query(
 		"SELECT value FROM englishTrainer.engPhrase WHERE id IN "+
 			"(SELECT engId FROM englishTrainer.RusEngPhrase WHERE rusId = $1)", rusPhraseId)
@@ -118,14 +165,39 @@ func (bot *TrainerBot) StartTraining(user *model.APIUser, text string) (string, 
 		}
 	}
 	var totalNum int
-	if err := bot.store.Db.QueryRow("SELECT COUNT(*) FROM englishTrainer.rusPhrase").Scan(&totalNum); err != nil {
-		return "", err
-	}
+	var random int
 	rand.Seed(time.Now().UnixNano())
-	rand := 1 + rand.Intn(totalNum)
+	if user.OnlyMyDictionary {
+		idMap := make(map[int]int)
+		rows, err := bot.store.Db.Query("SELECT id FROM englishTrainer.rusPhrase WHERE addedById = $1", user.Id)
+		if err != nil {
+			if strings.Contains(err.Error(), "no rows in result set") {
+				return "", fmt.Errorf("Ваш словарь пока пустой")
+			}
+			return "", err
+		}
+		i := 0
+		var id int
+		for rows.Next() {
+			rows.Scan(&id)
+			idMap[i] = id
+			i++
+		}
+		if len(idMap) == 0 {
+			return "", fmt.Errorf("Вы не добавили еще слов в Ваш словарь")
+		}
+		num := rand.Intn(len(idMap))
+		random = idMap[num]
+	} else {
+
+		if err := bot.store.Db.QueryRow("SELECT COUNT(*) FROM englishTrainer.rusPhrase").Scan(&totalNum); err != nil {
+			return "", err
+		}
+		random = 1 + rand.Intn(totalNum)
+	}
 	var rusPhraseId int
 	var rusPhrase string
-	if err := bot.store.Db.QueryRow("SELECT id, value FROM englishTrainer.rusPhrase WHERE id = $1", rand).Scan(&rusPhraseId, &rusPhrase); err != nil {
+	if err := bot.store.Db.QueryRow("SELECT id, value FROM englishTrainer.rusPhrase WHERE id = $1", random).Scan(&rusPhraseId, &rusPhrase); err != nil {
 		return "", err
 	}
 
